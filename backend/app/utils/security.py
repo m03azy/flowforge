@@ -2,6 +2,7 @@
 Security utilities: password hashing and JWT token creation / verification.
 """
 from datetime import datetime, timedelta, timezone
+# pyrefly: ignore [missing-import]
 import bcrypt
 import hashlib
 from jose import jwt, JWTError

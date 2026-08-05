@@ -67,6 +67,14 @@ def create_app() -> FastAPI:
     app.include_router(billing_router)
     app.include_router(audit_router)
     app.include_router(shop_router)
+    @app.get("/", tags=["Root"])
+    def read_root():
+        return {
+            "message": f"Welcome to {settings.APP_NAME} API",
+            "docs": "/docs",
+            "health": "/health",
+        }
+
     @app.get("/health", tags=["Health"])
     def health_check():
         return {
