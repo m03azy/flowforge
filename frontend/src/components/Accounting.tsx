@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import { DollarSign, ArrowUpRight, ArrowDownRight, Plus, Trash2, Loader2, AlertCircle } from "lucide-react";
 
@@ -38,8 +39,8 @@ export const Accounting = ({ token }: { token: string }) => {
   const fetchData = async () => {
     try {
       const [txRes, sumRes] = await Promise.all([
-        fetch("http://localhost:8000/api/accounting/", { headers: { Authorization: `Bearer ${token}` } }),
-        fetch("http://localhost:8000/api/accounting/summary", { headers: { Authorization: `Bearer ${token}` } })
+        fetch(`${API_BASE}/api/accounting/`, { headers: { Authorization: `Bearer ${token}` } }),
+        fetch(`${API_BASE}/api/accounting/summary`, { headers: { Authorization: `Bearer ${token}` } })
       ]);
 
       if (txRes.ok && sumRes.ok) {
@@ -62,7 +63,7 @@ export const Accounting = ({ token }: { token: string }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch("http://localhost:8000/api/accounting/", {
+      const res = await fetch(`${API_BASE}/api/accounting/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -90,7 +91,7 @@ export const Accounting = ({ token }: { token: string }) => {
   const deleteTransaction = async (id: number) => {
     if (!confirm("Are you sure you want to delete this transaction?")) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/accounting/${id}`, {
+      const res = await fetch(`${API_BASE}/api/accounting/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });

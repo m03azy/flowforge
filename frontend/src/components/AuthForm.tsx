@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState } from "react";
 import { Mail, Lock, User, Loader2, Sparkles, AlertCircle, Stethoscope, GraduationCap, Hotel, Building2, ShoppingCart } from "lucide-react";
 import { InstitutionType } from "../config/InstitutionTheme";
@@ -26,7 +27,7 @@ export default function AuthForm({ mode, onSuccess, onToggleMode, onRequires2FA 
     setErrorMsg("");
 
     try {
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const res = await fetch(`${API_BASE}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
@@ -57,7 +58,7 @@ export default function AuthForm({ mode, onSuccess, onToggleMode, onRequires2FA 
 
       if (mode === "register") {
         // Automatically login after successful registration
-        const loginRes = await fetch("http://localhost:8000/api/auth/login", {
+        const loginRes = await fetch(`${API_BASE}/api/auth/login`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ email, password }),

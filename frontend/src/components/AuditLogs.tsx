@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState, useEffect, useCallback } from "react";
 
 // ──────────────────────────────────────────────────────────────
@@ -81,7 +82,7 @@ function timeAgo(ts: string) {
   return `${Math.floor(h / 24)}d ago`;
 }
 
-const API = (window as any).__API_BASE__ ?? "http://localhost:8000";
+const API = (window as any).__API_BASE__ ?? `${API_BASE}`;
 
 // ──────────────────────────────────────────────────────────────
 // Component

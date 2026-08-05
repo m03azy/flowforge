@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import {
   Zap,
@@ -66,7 +67,7 @@ export default function SubscriptionManager({ token, userRole }: Props) {
   const fetchSubscriptionData = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/billing/plan", {
+      const res = await fetch(`${API_BASE}/api/billing/plan`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to load subscription details");
@@ -93,7 +94,7 @@ export default function SubscriptionManager({ token, userRole }: Props) {
     setSuccessNotice("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/billing/upgrade", {
+      const res = await fetch(`${API_BASE}/api/billing/upgrade`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -119,7 +120,7 @@ export default function SubscriptionManager({ token, userRole }: Props) {
     setSuccessNotice("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/billing/addon-request", {
+      const res = await fetch(`${API_BASE}/api/billing/addon-request`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

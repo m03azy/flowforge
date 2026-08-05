@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState } from "react";
 import {
   Plus,
@@ -98,7 +99,7 @@ export default function CreateWorkflow({ token, onCreated, institutionType }: Pr
     setMessage(null);
 
     try {
-      const res = await fetch("http://localhost:8000/api/workflows/", {
+      const res = await fetch(`${API_BASE}/api/workflows/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

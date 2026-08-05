@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import {
   Users,
@@ -64,7 +65,7 @@ export default function CrmDashboard({ token, userRole }: Props) {
     setLoading(true);
     try {
       // 1. Fetch leads
-      const leadsRes = await fetch("http://localhost:8000/api/crm/", {
+      const leadsRes = await fetch(`${API_BASE}/api/crm/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!leadsRes.ok) throw new Error("Failed to load leads");
@@ -72,7 +73,7 @@ export default function CrmDashboard({ token, userRole }: Props) {
       setLeads(leadsData);
 
       // 2. Fetch employees (for lead assignment)
-      const empRes = await fetch("http://localhost:8000/api/employees/", {
+      const empRes = await fetch(`${API_BASE}/api/employees/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (empRes.ok) {
@@ -108,7 +109,7 @@ export default function CrmDashboard({ token, userRole }: Props) {
         assigned_to_id: assignedToId ? parseInt(assignedToId) : null,
       };
 
-      const res = await fetch("http://localhost:8000/api/crm/", {
+      const res = await fetch(`${API_BASE}/api/crm/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -142,7 +143,7 @@ export default function CrmDashboard({ token, userRole }: Props) {
 
   const handleUpdateStatus = async (leadId: number, nextStatus: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/crm/${leadId}`, {
+      const res = await fetch(`${API_BASE}/api/crm/${leadId}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -165,7 +166,7 @@ export default function CrmDashboard({ token, userRole }: Props) {
     if (!confirm("Are you sure you want to delete this lead?")) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/crm/${leadId}`, {
+      const res = await fetch(`${API_BASE}/api/crm/${leadId}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

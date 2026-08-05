@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState, useEffect } from "react";
 import {
   Calendar as CalendarIcon,
@@ -136,7 +137,7 @@ export default function BookingManager({ token, userRole = "employee", instituti
   const fetchBookings = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/bookings/?institution_type=${institutionMode}`, {
+      const res = await fetch(`${API_BASE}/api/bookings/?institution_type=${institutionMode}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -152,7 +153,7 @@ export default function BookingManager({ token, userRole = "employee", instituti
   // Fetch Employees list for assignment dropdown
   const fetchStaff = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/employees/", {
+      const res = await fetch(`${API_BASE}/api/employees/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -175,7 +176,7 @@ export default function BookingManager({ token, userRole = "employee", instituti
     setErrorMessage("");
 
     try {
-      const res = await fetch("http://localhost:8000/api/bookings/", {
+      const res = await fetch(`${API_BASE}/api/bookings/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -210,7 +211,7 @@ export default function BookingManager({ token, userRole = "employee", instituti
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/bookings/${id}`, {
+      const res = await fetch(`${API_BASE}/api/bookings/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -231,7 +232,7 @@ export default function BookingManager({ token, userRole = "employee", instituti
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this booking?")) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/bookings/${id}`, {
+      const res = await fetch(`${API_BASE}/api/bookings/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

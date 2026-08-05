@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState } from "react";
 import {
   X,
@@ -158,7 +159,7 @@ export default function EditWorkflowModal({ workflow, token, onClose, onSaved, i
     setError("");
 
     try {
-      const res = await fetch(`http://localhost:8000/api/workflows/${workflow.id}`, {
+      const res = await fetch(`${API_BASE}/api/workflows/${workflow.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

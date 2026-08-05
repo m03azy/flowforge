@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState, useCallback } from "react";
 import {
   Shield,
@@ -22,7 +23,7 @@ type Props = {
 
 type Step = "idle" | "scanning" | "verifying" | "success";
 
-const API = "http://localhost:8000";
+const API = `${API_BASE}`;
 
 export default function TwoFactorSettings({ token, totpEnabled, onStatusChange }: Props) {
   const [step, setStep] = useState<Step>("idle");

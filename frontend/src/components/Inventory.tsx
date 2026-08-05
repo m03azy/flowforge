@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import { Package, Plus, Trash2, Edit2, Loader2, AlertCircle } from "lucide-react";
 
@@ -28,7 +29,7 @@ export const Inventory = ({ token }: { token: string }) => {
 
   const fetchProducts = async () => {
     try {
-      const res = await fetch("http://localhost:8000/api/inventory/", {
+      const res = await fetch(`${API_BASE}/api/inventory/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -60,7 +61,7 @@ export const Inventory = ({ token }: { token: string }) => {
         warehouse_location: formData.warehouse_location
       };
 
-      const res = await fetch("http://localhost:8000/api/inventory/", {
+      const res = await fetch(`${API_BASE}/api/inventory/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -93,7 +94,7 @@ export const Inventory = ({ token }: { token: string }) => {
   const deleteProduct = async (id: number) => {
     if (!confirm("Are you sure you want to delete this product?")) return;
     try {
-      const res = await fetch(`http://localhost:8000/api/inventory/${id}`, {
+      const res = await fetch(`${API_BASE}/api/inventory/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` }
       });

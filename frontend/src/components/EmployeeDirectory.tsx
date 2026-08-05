@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import {
   Briefcase,
@@ -75,8 +76,8 @@ export default function EmployeeDirectory({ token, userRole }: Props) {
     setLoading(true);
     try {
       const url = filterDept
-        ? `http://localhost:8000/api/employees/?department=${encodeURIComponent(filterDept)}`
-        : "http://localhost:8000/api/employees/";
+        ? `${API_BASE}/api/employees/?department=${encodeURIComponent(filterDept)}`
+        : `${API_BASE}/api/employees/`;
       
       const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
@@ -136,7 +137,7 @@ export default function EmployeeDirectory({ token, userRole }: Props) {
         phone_number: newPhone || null,
       };
 
-      const res = await fetch("http://localhost:8000/api/employees/", {
+      const res = await fetch(`${API_BASE}/api/employees/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -203,7 +204,7 @@ export default function EmployeeDirectory({ token, userRole }: Props) {
         role: editRole,
       };
 
-      const res = await fetch(`http://localhost:8000/api/employees/${id}`, {
+      const res = await fetch(`${API_BASE}/api/employees/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -231,7 +232,7 @@ export default function EmployeeDirectory({ token, userRole }: Props) {
     if (!confirm(`Are you sure you want to ${actionText} user ${emp.full_name}?`)) return;
 
     try {
-      const res = await fetch(`http://localhost:8000/api/employees/${emp.id}`, {
+      const res = await fetch(`${API_BASE}/api/employees/${emp.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

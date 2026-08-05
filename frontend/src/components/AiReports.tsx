@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState } from "react";
 import {
   Sparkles,
@@ -85,7 +86,7 @@ export default function AiReports({ token }: { token: string }) {
     setReport(null);
 
     try {
-      const res = await fetch("http://localhost:8000/api/reports/generate", {
+      const res = await fetch(`${API_BASE}/api/reports/generate`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });

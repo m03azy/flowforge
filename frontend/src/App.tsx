@@ -1,3 +1,4 @@
+import { API_BASE } from "./config/api";
 import { useEffect, useState } from "react";
 import {
   LogOut,
@@ -84,7 +85,7 @@ export default function App() {
       return;
     }
 
-    fetch("http://localhost:8000/api/auth/profile", {
+    fetch(`${API_BASE}/api/auth/profile`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
@@ -103,7 +104,7 @@ export default function App() {
     if (!token) return;
 
     // Fetch CRM Leads summary
-    fetch("http://localhost:8000/api/crm/", {
+    fetch(`${API_BASE}/api/crm/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -115,7 +116,7 @@ export default function App() {
       .catch(() => {});
 
     // Fetch Employee Directory count
-    fetch("http://localhost:8000/api/employees/", {
+    fetch(`${API_BASE}/api/employees/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))
@@ -123,7 +124,7 @@ export default function App() {
       .catch(() => {});
 
     // Fetch Workflows count
-    fetch("http://localhost:8000/api/workflows/", {
+    fetch(`${API_BASE}/api/workflows/`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => (res.ok ? res.json() : []))

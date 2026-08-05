@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState } from "react";
 import { ShieldCheck, Loader2, AlertCircle, ArrowLeft, Smartphone } from "lucide-react";
 
@@ -7,7 +8,7 @@ type Props = {
   onBack: () => void;
 };
 
-const API = "http://localhost:8000";
+const API = `${API_BASE}`;
 
 export default function TwoFactorVerify({ twoFaToken, onSuccess, onBack }: Props) {
   const [code, setCode] = useState("");

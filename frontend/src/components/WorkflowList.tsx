@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useEffect, useState } from "react";
 import {
   GitFork,
@@ -56,7 +57,7 @@ export default function WorkflowList({ token, refreshTrigger, onRefresh, institu
   const fetchWorkflows = async () => {
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/workflows/", {
+      const res = await fetch(`${API_BASE}/api/workflows/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -74,7 +75,7 @@ export default function WorkflowList({ token, refreshTrigger, onRefresh, institu
     if (!confirm("Are you sure you want to delete this workflow?")) return;
     setDeletingId(id);
     try {
-      const res = await fetch(`http://localhost:8000/api/workflows/${id}`, {
+      const res = await fetch(`${API_BASE}/api/workflows/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });

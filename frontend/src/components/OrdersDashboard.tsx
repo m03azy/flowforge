@@ -1,3 +1,4 @@
+import { API_BASE } from "../config/api";
 import { useState, useEffect, useCallback } from "react";
 
 // ─────────────────────────────────────────────────────────────────
@@ -74,7 +75,7 @@ const PAY_META: Record<string, { color: string; label: string }> = {
   refunded: { color: "#94a3b8", label: "Refunded" },
 };
 
-const API = (window as any).__API_BASE__ ?? "http://localhost:8000";
+const API = (window as any).__API_BASE__ ?? `${API_BASE}`;
 
 function fmt(ts: string) {
   return new Date(ts).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
