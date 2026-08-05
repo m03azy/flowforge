@@ -3,7 +3,7 @@ Authentication Router.
 Exposes REST endpoints for registering, logging in, logging out,
 refreshing tokens, requesting/resetting passwords, and profile management.
 """
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
@@ -12,6 +12,7 @@ from app.middleware.auth import get_current_user
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
+    LoginResponse,
     TokenResponse,
     RefreshRequest,
     ForgotPasswordRequest,
@@ -20,6 +21,10 @@ from app.schemas.auth import (
     UserResponse,
     UserUpdateRequest,
     MessageResponse,
+    TwoFASetupResponse,
+    TwoFAVerifyRequest,
+    TwoFALoginVerifyRequest,
+    TwoFAStatusResponse,
 )
 from app.services import auth_service
 from app.services.audit_service import write_log, AuditAction
@@ -55,29 +60,31 @@ def register(payload: RegisterRequest, request: Request, db: Session = Depends(g
 # Let's fix register status code to 201 Created
 @router.post(
     "/login",
-    response_model=TokenResponse,
+    response_model=LoginResponse,
     status_code=status.HTTP_200_OK,
     summary="Login user and obtain tokens",
 )
 def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
-    """Authenticate credentials and return JWT access and refresh tokens."""
+    """Authenticate credentials. If 2FA is enabled returns requires_2fa=True.
+    In that case call POST /auth/2fa/login-verify with the two_fa_token."""
     try:
         result = auth_service.authenticate_user(db, payload)
-        # Look up user for audit context
-        from app.models.user import User as UserModel
-        user = db.query(UserModel).filter(UserModel.email == payload.email).first()
-        write_log(
-            db,
-            action=AuditAction.USER_LOGIN,
-            actor_id=user.id if user else None,
-            actor_email=payload.email,
-            actor_role=user.role if user else None,
-            organisation_name=user.organisation_name if user else None,
-            resource_type="session",
-            description=f"User logged in: {payload.email}",
-            ip_address=request.client.host if request.client else None,
-            user_agent=request.headers.get("user-agent"),
-        )
+        # Only log successful full login (not the 2FA challenge step)
+        if not result.requires_2fa:
+            from app.models.user import User as UserModel
+            user = db.query(UserModel).filter(UserModel.email == payload.email).first()
+            write_log(
+                db,
+                action=AuditAction.USER_LOGIN,
+                actor_id=user.id if user else None,
+                actor_email=payload.email,
+                actor_role=user.role if user else None,
+                organisation_name=user.organisation_name if user else None,
+                resource_type="session",
+                description=f"User logged in: {payload.email}",
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
         return result
     except Exception as exc:
         write_log(
@@ -211,3 +218,108 @@ def update_profile(
 ):
     """Update profile fields (e.g. full name) for the current user."""
     return auth_service.update_user_profile(db, current_user, payload)
+
+
+# ── Two-Factor Authentication (TOTP) Endpoints ───────────────────────────
+
+@router.get(
+    "/2fa/setup",
+    response_model=TwoFASetupResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get 2FA setup QR code and secret",
+)
+def twofa_setup(current_user: User = Depends(get_current_user)):
+    """Generate a TOTP secret and provisioning URI for scanning into an authenticator app.
+    The secret is NOT saved yet — call POST /2fa/enable to confirm and activate."""
+    return auth_service.twofa_generate_setup(current_user)
+
+
+@router.post(
+    "/2fa/enable",
+    response_model=TwoFAStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Enable 2FA after verifying first TOTP code",
+)
+def twofa_enable(
+    payload: TwoFAVerifyRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Enable 2FA for the current user. Pass the secret from GET /2fa/setup
+    alongside your first TOTP code from the authenticator app."""
+    secret = payload.secret
+    if not secret:
+        raise HTTPException(status_code=400, detail="secret is required to enable 2FA")
+    auth_service.twofa_enable(db, current_user, secret, payload.code)
+    write_log(
+        db, action="2fa_enabled",
+        actor_id=current_user.id, actor_email=current_user.email,
+        actor_role=current_user.role,
+        resource_type="user", resource_id=current_user.id,
+        description=f"2FA enabled for: {current_user.email}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return TwoFAStatusResponse(totp_enabled=True)
+
+
+@router.post(
+    "/2fa/login-verify",
+    response_model=LoginResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Complete 2FA login challenge with TOTP code",
+)
+def twofa_login_verify(
+    payload: TwoFALoginVerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """After a login that returns requires_2fa=True, submit the two_fa_token and TOTP code
+    to receive full access + refresh tokens."""
+    result = auth_service.twofa_login_verify(db, payload.two_fa_token, payload.code)
+    # Audit the completed login
+    from jose import jwt as _jwt
+    from app.config.settings import get_settings as _gs
+    try:
+        _settings = _gs()
+        _decoded = _jwt.decode(result.access_token, _settings.JWT_SECRET_KEY, algorithms=[_settings.JWT_ALGORITHM])
+        from app.models.user import User as _U
+        _u = db.query(_U).filter(_U.id == int(_decoded["sub"])).first()
+        if _u:
+            write_log(
+                db, action=AuditAction.USER_LOGIN,
+                actor_id=_u.id, actor_email=_u.email, actor_role=_u.role,
+                organisation_name=_u.organisation_name,
+                resource_type="session",
+                description=f"User logged in (2FA verified): {_u.email}",
+                ip_address=request.client.host if request.client else None,
+                user_agent=request.headers.get("user-agent"),
+            )
+    except Exception:
+        pass
+    return result
+
+
+@router.delete(
+    "/2fa/disable",
+    response_model=TwoFAStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Disable 2FA (requires current TOTP code)",
+)
+def twofa_disable(
+    payload: TwoFAVerifyRequest,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Disable 2FA for the current account. Requires current TOTP code for confirmation."""
+    auth_service.twofa_disable(db, current_user, payload.code)
+    write_log(
+        db, action="2fa_disabled",
+        actor_id=current_user.id, actor_email=current_user.email,
+        actor_role=current_user.role,
+        resource_type="user", resource_id=current_user.id,
+        description=f"2FA disabled for: {current_user.email}",
+        ip_address=request.client.host if request.client else None,
+    )
+    return TwoFAStatusResponse(totp_enabled=False)

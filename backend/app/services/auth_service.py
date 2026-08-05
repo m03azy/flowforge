@@ -4,15 +4,17 @@ Authentication service — business logic layer.
 Handles user registration, login, token refresh, password reset,
 and profile management. Keeps the API router thin.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+import pyotp
 
 from app.models.user import User
 from app.models.refresh_token import RefreshToken
 from app.schemas.auth import (
     RegisterRequest,
     LoginRequest,
+    LoginResponse,
     TokenResponse,
     ChangePasswordRequest,
     UserUpdateRequest,
@@ -55,10 +57,11 @@ def register_user(db: Session, payload: RegisterRequest) -> User:
     return user
 
 
-# ── Login ─────────────────────────────────────────────────────────────────
+# ── Login ──────────────────────────────────────────────────────────────────
 
-def authenticate_user(db: Session, payload: LoginRequest) -> TokenResponse:
-    """Verify credentials and return an access + refresh token pair."""
+def authenticate_user(db: Session, payload: LoginRequest) -> LoginResponse:
+    """Verify credentials. If 2FA is enabled, return a short-lived 2FA token
+    instead of full tokens. The client must then call /auth/2fa/login-verify."""
     user = db.query(User).filter(User.email == payload.email).first()
     if not user or not verify_password(payload.password, user.hashed_password):
         raise HTTPException(
@@ -71,10 +74,23 @@ def authenticate_user(db: Session, payload: LoginRequest) -> TokenResponse:
             detail="Account is deactivated",
         )
 
+    # If TOTP is enabled, issue a short-lived 2FA challenge token instead
+    if user.totp_enabled and user.totp_secret:
+        two_fa_token = create_access_token(
+            {"sub": str(user.id), "type": "2fa_challenge"},
+            expires_delta=timedelta(minutes=5),
+        )
+        return LoginResponse(requires_2fa=True, two_fa_token=two_fa_token)
+
+    # No 2FA — issue full tokens immediately
+    access, refresh = _issue_token_pair(db, user)
+    return LoginResponse(access_token=access, refresh_token=refresh)
+
+
+def _issue_token_pair(db: Session, user: User):
+    """Helper: create access + refresh tokens and persist the refresh token."""
     access = create_access_token({"sub": str(user.id), "role": user.role})
     refresh = create_refresh_token({"sub": str(user.id)})
-
-    # Persist hashed refresh token for server-side revocation
     db_token = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(refresh),
@@ -82,8 +98,7 @@ def authenticate_user(db: Session, payload: LoginRequest) -> TokenResponse:
     )
     db.add(db_token)
     db.commit()
-
-    return TokenResponse(access_token=access, refresh_token=refresh)
+    return access, refresh
 
 
 # ── Refresh ───────────────────────────────────────────────────────────────
@@ -196,3 +211,72 @@ def update_user_profile(db: Session, user: User, payload: UserUpdateRequest) -> 
     db.commit()
     db.refresh(user)
     return user
+
+
+# ── Two-Factor Authentication (TOTP) ──────────────────────────────────────────────
+
+def twofa_generate_setup(user: User) -> dict:
+    """Generate a new TOTP secret and return the otpauth URI for QR display.
+    The secret is saved temporarily; it becomes active only after verification."""
+    secret = pyotp.random_base32()
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(
+        name=user.email,
+        issuer_name="FlowForge",
+    )
+    return {"secret": secret, "totp_uri": uri}
+
+
+def twofa_enable(db: Session, user: User, secret: str, code: str) -> None:
+    """Verify the TOTP code against the pending secret, then persist and enable."""
+    totp = pyotp.TOTP(secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid 2FA code. Please try again.",
+        )
+    user.totp_secret = secret
+    user.totp_enabled = True
+    db.commit()
+
+
+def twofa_login_verify(db: Session, two_fa_token: str, code: str) -> LoginResponse:
+    """Complete the 2FA login challenge: verify TOTP code then issue full tokens."""
+    from app.schemas.auth import LoginResponse as LR
+    payload = decode_token(two_fa_token)
+    if not payload or payload.get("type") != "2fa_challenge":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired 2FA challenge token",
+        )
+    user = db.query(User).filter(User.id == int(payload["sub"])).first()
+    if not user or not user.is_active or not user.totp_enabled or not user.totp_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="2FA not configured")
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid 2FA code",
+        )
+
+    access, refresh = _issue_token_pair(db, user)
+    return LR(access_token=access, refresh_token=refresh)
+
+
+def twofa_disable(db: Session, user: User, code: str) -> None:
+    """Disable 2FA after verifying the current TOTP code."""
+    if not user.totp_enabled or not user.totp_secret:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="2FA is not currently enabled",
+        )
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid 2FA code",
+        )
+    user.totp_secret = None
+    user.totp_enabled = False
+    db.commit()

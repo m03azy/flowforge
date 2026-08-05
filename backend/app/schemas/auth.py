@@ -45,6 +45,15 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
+class LoginResponse(BaseModel):
+    """Login response — either returns tokens OR flags that 2FA is needed."""
+    access_token: str | None = None
+    refresh_token: str | None = None
+    token_type: str = "bearer"
+    requires_2fa: bool = False
+    two_fa_token: str | None = None  # short-lived token to verify the TOTP step
+
+
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -77,6 +86,7 @@ class UserResponse(BaseModel):
     subscription_plan: str = "starter"
     is_active: bool
     is_verified: bool
+    totp_enabled: bool = False
     department: str | None = None
     job_title: str | None = None
     phone_number: str | None = None
@@ -86,6 +96,30 @@ class UserResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ── 2FA Schemas ───────────────────────────────────────────────────────────
+
+class TwoFASetupResponse(BaseModel):
+    """Returned when user initiates 2FA setup — contains QR URI and raw secret."""
+    totp_uri: str          # otpauth:// URI for QR rendering
+    secret: str            # base32 secret (show to user as backup)
+
+
+class TwoFAVerifyRequest(BaseModel):
+    """Used to enable 2FA by verifying the first TOTP code."""
+    code: str = Field(..., min_length=6, max_length=8)
+    secret: str | None = None  # Required when enabling 2FA; omit when disabling
+
+
+class TwoFALoginVerifyRequest(BaseModel):
+    """Used during login to supply the TOTP code after password succeeds."""
+    two_fa_token: str          # short-lived token from LoginResponse
+    code: str = Field(..., min_length=6, max_length=8)
+
+
+class TwoFAStatusResponse(BaseModel):
+    totp_enabled: bool
 
 
 class UserUpdateRequest(BaseModel):

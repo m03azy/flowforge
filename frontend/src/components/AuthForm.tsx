@@ -6,9 +6,10 @@ type Props = {
   mode: "login" | "register";
   onSuccess: (token: string) => void;
   onToggleMode: () => void;
+  onRequires2FA?: (twoFaToken: string) => void;
 };
 
-export default function AuthForm({ mode, onSuccess, onToggleMode }: Props) {
+export default function AuthForm({ mode, onSuccess, onToggleMode, onRequires2FA }: Props) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -68,7 +69,10 @@ export default function AuthForm({ mode, onSuccess, onToggleMode }: Props) {
           onToggleMode(); // Fallback to manual login
         }
       } else {
-        if (data.access_token) {
+        // Login: check if 2FA is required
+        if (data.requires_2fa && data.two_fa_token) {
+          if (onRequires2FA) onRequires2FA(data.two_fa_token);
+        } else if (data.access_token) {
           onSuccess(data.access_token);
         }
       }

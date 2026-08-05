@@ -10,3 +10,5 @@ bcrypt
 pydantic-settings
 email-validator
 httpx
+pyotp
+qrcode[pil]

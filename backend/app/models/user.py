@@ -51,6 +51,10 @@ class User(Base):
     phone_number = Column(String(30), nullable=True)
     hire_date = Column(DateTime(timezone=True), nullable=True)
 
+    # Two-Factor Authentication (TOTP via authenticator app)
+    totp_secret = Column(String(64), nullable=True)   # base32 secret for TOTP
+    totp_enabled = Column(Boolean, default=False, nullable=False)
+
     created_at = Column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

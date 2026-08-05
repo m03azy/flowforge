@@ -17,6 +17,8 @@ import {
   ShoppingCart
 } from "lucide-react";
 import AuthForm from "./components/AuthForm";
+import TwoFactorVerify from "./components/TwoFactorVerify";
+import TwoFactorSettings from "./components/TwoFactorSettings";
 import WorkflowList from "./components/WorkflowList";
 import CreateWorkflow from "./components/CreateWorkflow";
 import CrmDashboard from "./components/CrmDashboard";
@@ -39,11 +41,13 @@ type UserProfile = {
   organisation_name?: string | null;
   department: string | null;
   job_title: string | null;
+  totp_enabled?: boolean;
 };
 
 export default function App() {
   const [token, setToken] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [twoFaToken, setTwoFaToken] = useState<string | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [activeTab, setActiveTab] = useState("dashboard");
 
@@ -160,6 +164,19 @@ export default function App() {
     setRefreshKey((prev) => prev + 1);
   };
 
+  // ── 2FA Challenge Screen ────────────────────────────────────────────────
+  if (!token && twoFaToken) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-4 transition-all">
+        <TwoFactorVerify
+          twoFaToken={twoFaToken}
+          onSuccess={(t) => { setTwoFaToken(null); setToken(t); }}
+          onBack={() => setTwoFaToken(null)}
+        />
+      </div>
+    );
+  }
+
   if (!token) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-center items-center p-4 transition-all">
@@ -199,6 +216,7 @@ export default function App() {
         <AuthForm
           mode={authMode}
           onSuccess={(t) => setToken(t)}
+          onRequires2FA={(tok) => setTwoFaToken(tok)}
           onToggleMode={() => setAuthMode(authMode === "login" ? "register" : "login")}
         />
       </div>
@@ -556,7 +574,19 @@ export default function App() {
 
           {activeTab === "bookings" && <BookingManager token={token} userRole={userRole} institutionType={user?.institution_type} />}
           {activeTab === "settings" && (
-            <CrmDashboard token={token} userRole={userRole} />
+            <div className="max-w-2xl mx-auto space-y-6">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Account Security</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Manage authentication settings and security options for your account.
+                </p>
+              </div>
+              <TwoFactorSettings
+                token={token}
+                totpEnabled={user?.totp_enabled ?? false}
+                onStatusChange={(enabled) => setUser((prev) => prev ? { ...prev, totp_enabled: enabled } : prev)}
+              />
+            </div>
           )}
 
           {activeTab === "crm" && (
