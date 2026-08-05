@@ -5,7 +5,9 @@ and exposes security/healthcheck APIs.
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 from app.config.settings import get_settings
 from app.api.auth import router as auth_router
@@ -68,9 +70,14 @@ def create_app() -> FastAPI:
     app.include_router(billing_router)
     app.include_router(audit_router)
     app.include_router(shop_router)
-    @app.get("/", response_class=HTMLResponse, tags=["Root"])
-    def read_root():
-        html_content = f"""<!DOCTYPE html>
+    # Resolve frontend build directory
+    frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+    if not frontend_dist.exists():
+        frontend_dist = Path("/app/frontend/dist")
+
+    # Shared API info page HTML template
+    def get_api_info_html():
+        return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -365,7 +372,49 @@ def create_app() -> FastAPI:
     </div>
 </body>
 </html>"""
-        return HTMLResponse(content=html_content, status_code=200)
+
+    if frontend_dist.exists():
+        assets_dir = frontend_dist / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/")
+        def serve_frontend_index():
+            index_path = frontend_dist / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+            return HTMLResponse(content=get_api_info_html(), status_code=200)
+
+        @app.get("/api-info", response_class=HTMLResponse, tags=["Root"])
+        def read_api_info():
+            return HTMLResponse(content=get_api_info_html(), status_code=200)
+
+        @app.get("/{catchall:path}")
+        def serve_frontend_fallback(catchall: str):
+            # If request starts with API/Docs/Health, let FastAPI return a standard 404
+            if (
+                catchall.startswith("api/")
+                or catchall.startswith("docs")
+                or catchall.startswith("redoc")
+                or catchall.startswith("health")
+            ):
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Not Found")
+
+            # If the path points directly to an existing file in frontend/dist, serve it
+            target_file = frontend_dist / catchall
+            if target_file.is_file():
+                return FileResponse(str(target_file))
+
+            # Default to index.html for SPA router fallback
+            index_path = frontend_dist / "index.html"
+            if index_path.exists():
+                return FileResponse(str(index_path))
+            return HTMLResponse(content=get_api_info_html(), status_code=200)
+    else:
+        @app.get("/", response_class=HTMLResponse, tags=["Root"])
+        def read_root():
+            return HTMLResponse(content=get_api_info_html(), status_code=200)
 
     @app.get("/health", tags=["Health"])
     def health_check():
