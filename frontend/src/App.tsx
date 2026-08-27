@@ -1,5 +1,5 @@
 import { API_BASE } from "./config/api";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   LogOut,
   Moon,
@@ -15,7 +15,15 @@ import {
   CalendarDays,
   CreditCard,
   Shield,
-  ShoppingCart
+  ShoppingCart,
+  Crown,
+  FileText,
+  Bell,
+  Megaphone,
+  AlertTriangle,
+  X,
+  Clock,
+  Inbox
 } from "lucide-react";
 import AuthForm from "./components/AuthForm";
 import TwoFactorVerify from "./components/TwoFactorVerify";
@@ -31,6 +39,9 @@ import BookingManager from "./components/BookingManager";
 import SubscriptionManager from "./components/SubscriptionManager";
 import AuditLogs from "./components/AuditLogs";
 import OrdersDashboard from "./components/OrdersDashboard";
+import SuperAdminDashboard from "./components/SuperAdminDashboard";
+import ResellerConsole from "./components/ResellerConsole";
+import DocumentManager from "./components/DocumentManager";
 import { getInstitutionTheme } from "./config/InstitutionTheme";
 
 type UserProfile = {
@@ -43,6 +54,17 @@ type UserProfile = {
   department: string | null;
   job_title: string | null;
   totp_enabled?: boolean;
+};
+
+type NotificationItem = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  level: string;
+  sender: string;
+  created_at: string;
+  is_read: boolean;
 };
 
 export default function App() {
@@ -62,14 +84,21 @@ export default function App() {
 
   const [isDark, setIsDark] = useState(false);
 
+  // ── Reseller Notification & Broadcast State ──
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [activeBroadcast, setActiveBroadcast] = useState<any>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [dismissedBroadcast, setDismissedBroadcast] = useState(false);
+
   // Load token & theme from storage
   useEffect(() => {
     const savedToken = localStorage.getItem("token");
-    if (savedToken) setToken(savedToken);
-
+    if (savedToken) {
+      setToken(savedToken);
+    }
     const savedTheme = localStorage.getItem("theme");
-    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    if (savedTheme === "dark" || (!savedTheme && systemPrefersDark)) {
+    if (savedTheme === "dark" || (!savedTheme && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
       setIsDark(true);
       document.documentElement.classList.add("dark");
     } else {
@@ -78,65 +107,86 @@ export default function App() {
     }
   }, []);
 
-  // Fetch user profile
+  // Fetch Current User
   useEffect(() => {
     if (!token) {
       setUser(null);
       return;
     }
 
-    fetch(`${API_BASE}/api/auth/profile`, {
-      headers: { Authorization: `Bearer ${token}` },
+    fetch(`${API_BASE}/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     })
       .then((res) => {
-        if (!res.ok) {
-          if (res.status === 401) handleLogout();
-          throw new Error("Invalid session");
-        }
+        if (!res.ok) throw new Error("Invalid token");
         return res.json();
       })
       .then((data) => setUser(data))
-      .catch(() => setUser(null));
+      .catch(() => {
+        handleLogout();
+      });
   }, [token]);
 
-  // Fetch general metrics for dashboard
+  // Fetch Notifications & Reseller Broadcasts
+  const fetchNotifications = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/notifications/`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unread_count || 0);
+        setActiveBroadcast(data.active_broadcast || null);
+      }
+    } catch {
+      // silent polling catch
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  // Fetch Dashboard Stats (CRM leads & pipeline)
   useEffect(() => {
     if (!token) return;
 
-    // Fetch CRM Leads summary
-    fetch(`${API_BASE}/api/crm/`, {
-      headers: { Authorization: `Bearer ${token}` },
+    fetch(`${API_BASE}/api/crm/leads`, {
+      headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: any[]) => {
-        setLeadCount(data.length);
-        const totalVal = data.reduce((sum, l) => sum + (l.status !== "Lost" ? l.value : 0), 0);
-        setPipelineValue(totalVal);
+      .then((leads) => {
+        setLeadCount(leads.length);
+        const total = leads.reduce((sum: number, l: any) => sum + (l.value || 0), 0);
+        setPipelineValue(total);
       })
       .catch(() => {});
 
-    // Fetch Employee Directory count
     fetch(`${API_BASE}/api/employees/`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: any[]) => setEmployeeCount(data.length))
+      .then((emps) => setEmployeeCount(emps.length))
       .catch(() => {});
 
-    // Fetch Workflows count
     fetch(`${API_BASE}/api/workflows/`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => (res.ok ? res.json() : []))
-      .then((data: any[]) => setWorkflowCount(data.length))
+      .then((wfs) => setWorkflowCount(wfs.length))
       .catch(() => {});
-  }, [token, activeTab, refreshKey]);
+  }, [token, refreshKey]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
-    setActiveTab("dashboard");
   };
 
   const toggleTheme = () => {
@@ -165,6 +215,14 @@ export default function App() {
     setRefreshKey((prev) => prev + 1);
   };
 
+  const markAllNotificationsRead = () => {
+    setUnreadCount(0);
+    fetch(`${API_BASE}/api/notifications/mark-read`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => {});
+  };
+
   // ── 2FA Challenge Screen ────────────────────────────────────────────────
   if (!token && twoFaToken) {
     return (
@@ -184,7 +242,7 @@ export default function App() {
         <div className="absolute top-4 right-4">
           <button
             onClick={toggleTheme}
-            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-850 transition-all shadow-sm"
+            className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-850 transition-all shadow-sm cursor-pointer"
           >
             {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
@@ -194,7 +252,7 @@ export default function App() {
         <div className="w-full max-w-lg mb-4 p-1 bg-slate-200 dark:bg-slate-800/80 rounded-xl flex items-center gap-1 shadow-inner">
           <button
             onClick={() => setAuthMode("login")}
-            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all cursor-pointer ${
               authMode === "login"
                 ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-violet-400 shadow-md"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -204,7 +262,7 @@ export default function App() {
           </button>
           <button
             onClick={() => setAuthMode("register")}
-            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${
+            className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all cursor-pointer ${
               authMode === "register"
                 ? "bg-white dark:bg-slate-900 text-violet-600 dark:text-violet-400 shadow-md"
                 : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
@@ -227,6 +285,22 @@ export default function App() {
   const userRole = user?.role || "employee";
   const theme = getInstitutionTheme(user?.institution_type);
   const InstIcon = theme.icon;
+
+  // ── Superadmin gets a completely separate, standalone Reseller Console ──
+  if (userRole === "superadmin") {
+    return (
+      <ResellerConsole
+        token={token!}
+        userEmail={user?.email || ""}
+        userName={user?.full_name || "Reseller Admin"}
+        onLogout={handleLogout}
+        onImpersonate={(t) => {
+          localStorage.setItem("token", t);
+          setToken(t);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex transition-colors duration-300">
@@ -261,6 +335,20 @@ export default function App() {
             >
               <Home className="h-5 w-5" />
               Dashboard
+            </button>
+          )}
+
+          {theme.enabledModules.includes("documents") && (
+            <button
+              onClick={() => setActiveTab("documents")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 cursor-pointer ${
+                activeTab === "documents"
+                  ? "bg-violet-600 text-white shadow-md shadow-violet-500/25 font-semibold"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              }`}
+            >
+              <FileText className="h-5 w-5" />
+              {theme.navLabels.documents || "Documents & Files"}
             </button>
           )}
 
@@ -403,6 +491,20 @@ export default function App() {
               Audit Logs
             </button>
           )}
+
+          {userRole === "superadmin" && (
+            <button
+              onClick={() => setActiveTab("superadmin")}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200 cursor-pointer ${
+                activeTab === "superadmin"
+                  ? "bg-amber-600 text-white shadow-md shadow-amber-500/25 font-semibold"
+                  : "text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+              }`}
+            >
+              <Crown className="h-5 w-5" />
+              Platform Tenants
+            </button>
+          )}
         </nav>
 
         {/* Sidebar Footer / Profile Info */}
@@ -424,7 +526,7 @@ export default function App() {
           )}
           <button
             onClick={handleLogout}
-            className="p-2 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all shrink-0"
+            className="p-2 text-slate-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl transition-all shrink-0 cursor-pointer"
             title="Log out"
           >
             <LogOut className="h-5 w-5" />
@@ -434,12 +536,14 @@ export default function App() {
 
       {/* ── Main View Container ── */}
       <div className="flex-1 pl-64 flex flex-col min-h-screen">
-        {/* Top Header */}
+        {/* Top Header with Notification Bell */}
         <header className="h-16 px-8 bg-white/70 dark:bg-slate-900/70 border-b border-slate-200 dark:border-slate-800 backdrop-blur-md flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white capitalize">
               {activeTab === "workflows"
                 ? "Workflow Automations"
+                : activeTab === "documents"
+                ? theme.navLabels.documents || "Documents & Files"
                 : activeTab === "crm"
                 ? theme.crmModuleTitle
                 : activeTab === "employees"
@@ -454,17 +558,113 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* ── Notification Bell (Receives Reseller Announcements & Alerts) ── */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
+                title="Notifications from Reseller & Workspace"
+              >
+                <Bell className="h-5 w-5" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-slate-900 animate-pulse" />
+                )}
+              </button>
+
+              {/* Notification Dropdown Menu */}
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 md:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-4 z-50 animate-in fade-in zoom-in-95">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Bell className="h-4 w-4 text-violet-600" />
+                      <span className="text-xs font-bold text-slate-900 dark:text-white">Platform Notifications</span>
+                    </div>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllNotificationsRead}
+                        className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800/80 max-h-80 overflow-y-auto mt-2">
+                    {notifications.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-400 flex flex-col items-center gap-2">
+                        <Inbox className="h-6 w-6 text-slate-300 dark:text-slate-600" />
+                        <span>No new notifications from reseller</span>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div key={n.id} className="py-3 flex items-start gap-3">
+                          <div
+                            className={`p-2 rounded-xl shrink-0 ${
+                              n.type === "broadcast"
+                                ? "bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400"
+                                : "bg-violet-50 dark:bg-violet-950/40 text-violet-600 dark:text-violet-400"
+                            }`}
+                          >
+                            {n.type === "broadcast" ? <Megaphone className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{n.title}</p>
+                              {n.type === "broadcast" && (
+                                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-500">
+                                  Reseller
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">{n.message}</p>
+                            <span className="text-[10px] text-slate-400 flex items-center gap-1 mt-1">
+                              <Clock className="h-2.5 w-2.5" />
+                              {new Date(n.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Theme selector */}
             <button
               onClick={toggleTheme}
-              className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+              className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer"
               title="Toggle theme"
             >
               {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
           </div>
         </header>
+
+        {/* ── Reseller Broadcast Announcement Banner ── */}
+        {activeBroadcast && !dismissedBroadcast && activeBroadcast.message && (
+          <div className="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white px-6 py-3 flex items-center justify-between shadow-md sticky top-16 z-10">
+            <div className="flex items-center gap-3">
+              <div className="p-1.5 bg-black/20 rounded-lg shrink-0">
+                <Megaphone className="h-4 w-4 text-white animate-bounce" />
+              </div>
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-100">
+                  Reseller Platform Announcement ({activeBroadcast.level || "Notice"})
+                </p>
+                <p className="text-sm font-semibold">{activeBroadcast.message}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setDismissedBroadcast(true)}
+              className="p-1 hover:bg-black/20 rounded-lg text-white/80 hover:text-white transition-all cursor-pointer"
+              title="Dismiss announcement"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
         {/* Tab content switcher */}
         <main className="flex-1 p-8 overflow-y-auto">
@@ -485,7 +685,7 @@ export default function App() {
                 <div className="z-10 shrink-0">
                   <button
                     onClick={() => setActiveTab("bookings")}
-                    className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md"
+                    className="px-4 py-2.5 bg-violet-600 hover:bg-violet-700 text-white text-sm font-semibold rounded-xl transition-all shadow-md cursor-pointer"
                   >
                     Schedule {theme.bookingLabel}
                   </button>
@@ -535,29 +735,42 @@ export default function App() {
                 </div>
               </div>
 
-              {/* CRM shortcuts quick grid details */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* CRM & Documents shortcuts */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">{theme.crmModuleTitle} Overview</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Manage {theme.clientLabelPlural.toLowerCase()} and assign staff members ({theme.staffLabelPlural.toLowerCase()}) to track progress from intake to completion.
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">{theme.crmModuleTitle} Overview</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Manage {theme.clientLabelPlural.toLowerCase()} and assign {theme.staffLabelPlural.toLowerCase()} to track status from intake to completion.
                   </p>
                   <button
                     onClick={() => setActiveTab("crm")}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 dark:text-violet-400 hover:underline"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
                   >
                     Manage {theme.clientLabelPlural} Directory →
                   </button>
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Automations & WhatsApp Notifications</h3>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Trigger automated messages to {theme.clientLabelPlural.toLowerCase()} upon status changes (e.g. checkup completion, meeting reminders, or reservation confirmations).
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Documents & File Vault</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Manage organizational invoices, service agreements, SLAs, compliance policies, and executive reports.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("documents")}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
+                  >
+                    Open Document Vault →
+                  </button>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl shadow-sm space-y-4">
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">Automations & Actions Library</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Compose automated pipelines with 20+ reusable action blocks across Communication, Documents, DB, and Storage.
                   </p>
                   <button
                     onClick={() => setActiveTab("workflows")}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-violet-600 dark:text-violet-400 hover:underline"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer"
                   >
                     Manage Workflow Automations →
                   </button>
@@ -566,12 +779,17 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === "documents" && (
+            <DocumentManager token={token} organisationName={user?.organisation_name || undefined} />
+          )}
+
           {activeTab === "inventory" && <Inventory token={token} />}
           {activeTab === "accounting" && <Accounting token={token} />}
           {activeTab === "ai-reports" && <AiReports token={token} />}
           {activeTab === "billing" && <SubscriptionManager token={token} userRole={userRole} />}
           {activeTab === "audit" && <AuditLogs token={token} />}
           {activeTab === "shop" && <OrdersDashboard token={token} userRole={userRole} />}
+          {activeTab === "superadmin" && <SuperAdminDashboard token={token} onImpersonate={(t) => setToken(t)} />}
 
           {activeTab === "bookings" && <BookingManager token={token} userRole={userRole} institutionType={user?.institution_type} />}
           {activeTab === "settings" && (

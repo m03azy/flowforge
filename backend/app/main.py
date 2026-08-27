@@ -21,6 +21,12 @@ from app.api.booking import router as booking_router
 from app.api.billing import router as billing_router
 from app.api.audit_logs import router as audit_router
 from app.api.shop import router as shop_router
+from app.api.superadmin import router as superadmin_router
+from app.api.action_library import router as action_library_router
+from app.api.documents import router as documents_router
+from app.api.notifications import router as notifications_router
+from app.api.api_keys import router as api_keys_router
+from app.api.email import router as email_router
 from app.db.session import Base, engine
 
 # Import all models to ensure SQLAlchemy registers them on Base.metadata
@@ -33,13 +39,20 @@ from app.models.accounting import Transaction  # noqa: F401
 from app.models.booking import Booking  # noqa: F401
 from app.models.audit_log import AuditLog  # noqa: F401
 from app.models.shop import ShopProduct, ShopCart, ShopOrder  # noqa: F401
+from app.models.schedule import PlatformSchedule  # noqa: F401
+from app.models.action_template import ActionTemplate  # noqa: F401
+from app.models.document import Document  # noqa: F401
+from app.api.api_keys import ApiKeyConfig  # noqa: F401
 
 settings = get_settings()
 
 
 def create_app() -> FastAPI:
-    # Database tables are managed via Alembic migrations.
-    # Base.metadata.create_all(bind=engine)
+    # Ensure database tables exist on startup (fallback for fresh deployments on Render)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"[Startup Warning] Could not auto-create tables: {e}")
 
     app = FastAPI(
         title=settings.APP_NAME,
@@ -49,11 +62,14 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
     )
 
+    origins = settings.get_cors_origins()
+    allow_all = "*" in origins
+
     # CORS Middleware configuration
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
-        allow_credentials=True,
+        allow_origins=["*"] if allow_all else origins,
+        allow_credentials=not allow_all,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -70,6 +86,12 @@ def create_app() -> FastAPI:
     app.include_router(billing_router)
     app.include_router(audit_router)
     app.include_router(shop_router)
+    app.include_router(superadmin_router)
+    app.include_router(action_library_router)
+    app.include_router(documents_router)
+    app.include_router(notifications_router)
+    app.include_router(api_keys_router)
+    app.include_router(email_router)
     # Resolve frontend build directory
     frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
     if not frontend_dist.exists():

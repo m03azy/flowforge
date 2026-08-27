@@ -24,11 +24,26 @@ class Settings(BaseSettings):
     # AI / Gemini
     GEMINI_API_KEY: str = ""
 
+    # Email / SendGrid
+    SENDGRID_API_KEY: str = ""
+    EMAIL_FROM_ADDRESS: str = ""          # e.g. noreply@yourcompany.com
+    EMAIL_FROM_NAME: str = "FlowForge"    # Display name in From: header
+    EMAIL_REPLY_TO: str = ""              # Optional reply-to address
+    APP_URL: str = "http://localhost:5173"  # Used for CTA button links in emails
+
+
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:5174"]
+    CORS_ORIGINS: str | list[str] = ["*"]
+
+    def get_cors_origins(self) -> list[str]:
+        if isinstance(self.CORS_ORIGINS, str):
+            if self.CORS_ORIGINS == "*":
+                return ["*"]
+            return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        return self.CORS_ORIGINS
 
     class Config:
         env_file = ".env.backend"

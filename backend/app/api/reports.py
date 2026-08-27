@@ -2,6 +2,7 @@
 AI Reports API - Gathers business data and uses Google Gemini to generate
 a structured weekly business intelligence report.
 """
+import asyncio
 import json
 import httpx
 from datetime import datetime, timedelta
@@ -198,8 +199,15 @@ async def generate_report(
     # Step 2: Build the prompt
     prompt = _build_prompt(business_data)
 
-    # Step 3: Call the Gemini API
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={settings.GEMINI_API_KEY}"
+    # Step 3: Call the Gemini API with retry + model fallback
+    # Try primary model first, fall back to a lighter model on 503/429/overload.
+    MODELS_TO_TRY = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash-lite",
+    ]
+    MAX_RETRIES = 3
+    RETRY_DELAY = 4  # seconds between retries
 
     payload = {
         "contents": [
@@ -213,27 +221,47 @@ async def generate_report(
         }
     }
 
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            result = response.json()
+    last_error = "Unknown error"
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        for model in MODELS_TO_TRY:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={settings.GEMINI_API_KEY}"
+            for attempt in range(1, MAX_RETRIES + 1):
+                try:
+                    response = await client.post(url, json=payload)
 
-        report_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                    # Retry on 503 (overloaded) and 429 (rate limited)
+                    if response.status_code in (503, 429):
+                        wait = RETRY_DELAY * attempt
+                        if attempt < MAX_RETRIES:
+                            await asyncio.sleep(wait)
+                            continue  # retry same model
+                        else:
+                            last_error = f"Gemini API error: {response.status_code} - {response.text[:200]}"
+                            break  # try next model
 
-        return {
-            "report": report_text,
-            "data_snapshot": business_data,
-            "generated_at": business_data["report_date"]
-        }
+                    response.raise_for_status()
+                    result = response.json()
 
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Gemini API error: {e.response.status_code} - {e.response.text}"
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to generate report: {str(e)}"
-        )
+                    report_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                    return {
+                        "report": report_text,
+                        "data_snapshot": business_data,
+                        "generated_at": business_data["report_date"],
+                        "model_used": model,
+                    }
+
+                except httpx.HTTPStatusError as e:
+                    last_error = f"Gemini API error: {e.response.status_code} - {e.response.text[:200]}"
+                    if e.response.status_code in (503, 429) and attempt < MAX_RETRIES:
+                        await asyncio.sleep(RETRY_DELAY * attempt)
+                        continue
+                    break  # move to next model
+
+                except Exception as e:
+                    last_error = str(e)
+                    break  # non-HTTP error, skip to next model
+
+    raise HTTPException(
+        status_code=503,
+        detail=f"All Gemini models are currently unavailable. Please try again in a few minutes. Last error: {last_error}"
+    )

@@ -9,4 +9,8 @@ const isLocalhost =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1";
 
-export const API_BASE = isLocalhost ? "http://localhost:8000" : "";
+const envApiUrl = (import.meta as any).env?.VITE_API_URL;
+const windowApiUrl = (window as any).__API_BASE__;
+
+export const API_BASE = envApiUrl || windowApiUrl || (isLocalhost ? "http://localhost:8000" : "");
+

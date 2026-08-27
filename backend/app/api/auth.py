@@ -200,6 +200,12 @@ def change_password(
     status_code=status.HTTP_200_OK,
     summary="Get current user profile",
 )
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get current user profile (alias)",
+)
 def get_profile(current_user: User = Depends(get_current_user)):
     """Retrieve logged-in user's profile details."""
     return current_user

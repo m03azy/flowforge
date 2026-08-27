@@ -286,9 +286,47 @@ export default function AuthForm({ mode, onSuccess, onToggleMode, onRequires2FA 
         </span>
       </div>
 
+      {/* Quick Demo Sign-In Buttons */}
+      {mode === "login" && (
+        <div className="space-y-2 pt-1">
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center">
+            Quick Demo Sign-In
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("reseller.admin@flowforge.dev");
+                setPassword("ResellerAdmin@2026");
+              }}
+              className="px-3 py-2 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:hover:bg-amber-950/60 border border-amber-200/60 dark:border-amber-900/40 rounded-xl text-left transition-all cursor-pointer"
+            >
+              <span className="block text-xs font-bold text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                👑 Reseller Superadmin
+              </span>
+              <span className="text-[10px] text-slate-500 truncate block">reseller.admin@...</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setEmail("tenant.manager@apexclinic.com");
+                setPassword("Password123!");
+              }}
+              className="px-3 py-2 bg-violet-50 hover:bg-violet-100 dark:bg-violet-950/30 dark:hover:bg-violet-950/60 border border-violet-200/60 dark:border-violet-900/40 rounded-xl text-left transition-all cursor-pointer"
+            >
+              <span className="block text-xs font-bold text-violet-700 dark:text-violet-400 flex items-center gap-1">
+                🏥 Hospital Tenant
+              </span>
+              <span className="text-[10px] text-slate-500 truncate block">tenant.manager@...</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={onToggleMode}
-        className="w-full py-2.5 px-4 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium border border-slate-200 dark:border-slate-800 rounded-xl transition-all"
+        className="w-full py-2.5 px-4 bg-transparent hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium border border-slate-200 dark:border-slate-800 rounded-xl transition-all cursor-pointer"
       >
         {mode === "login" ? "Register new institution" : "Sign in to existing account"}
       </button>

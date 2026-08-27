@@ -7,10 +7,14 @@ from app.models.inventory import Product
 from app.models.accounting import Transaction
 from app.models.audit_log import AuditLog
 from app.models.shop import ShopProduct, ShopCart, ShopOrder
+from app.models.schedule import PlatformSchedule
+from app.models.action_template import ActionTemplate
+from app.models.document import Document
 
 __all__ = [
     "Base", "User", "Lead", "Booking", "Workflow", "Trigger", "Action",
     "Product", "Transaction", "AuditLog",
-    "ShopProduct", "ShopCart", "ShopOrder",
+    "ShopProduct", "ShopCart", "ShopOrder", "PlatformSchedule", "ActionTemplate",
+    "Document",
 ]
 

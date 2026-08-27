@@ -15,6 +15,7 @@ export type ModuleKey =
   | "shop"
   | "crm"
   | "bookings"
+  | "documents"
   | "workflows"
   | "employees"
   | "inventory"
@@ -48,6 +49,7 @@ export interface InstitutionConfig {
   navLabels: {
     crm: string;
     bookings?: string;
+    documents?: string;
     employees: string;
     inventory: string;
     accounting: string;
@@ -87,7 +89,7 @@ export const fontThemes: Record<InstitutionType, InstitutionConfig> = {
     badgeText: "text-emerald-700 dark:text-emerald-300",
     primaryColor: "emerald",
     
-    enabledModules: ["dashboard", "crm", "bookings", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
+    enabledModules: ["dashboard", "documents", "crm", "bookings", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
     
     workflowTriggers: [
       { value: "patient_triage_registered", label: "🏥 Patient Intake / Triage Registered", category: "Patients" },
@@ -142,7 +144,7 @@ export const fontThemes: Record<InstitutionType, InstitutionConfig> = {
     badgeText: "text-blue-700 dark:text-blue-300",
     primaryColor: "blue",
     
-    enabledModules: ["dashboard", "crm", "bookings", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
+    enabledModules: ["dashboard", "documents", "crm", "bookings", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
     
     workflowTriggers: [
       { value: "student_application_submitted", label: "📝 Admission Inquiry / Application Submitted", category: "Admissions" },
@@ -197,7 +199,7 @@ export const fontThemes: Record<InstitutionType, InstitutionConfig> = {
     badgeText: "text-amber-700 dark:text-amber-300",
     primaryColor: "amber",
     
-    enabledModules: ["dashboard", "bookings", "crm", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
+    enabledModules: ["dashboard", "documents", "bookings", "crm", "employees", "inventory", "accounting", "ai-reports", "workflows", "audit", "billing"],
     
     workflowTriggers: [
       { value: "reservation_created", label: "🏨 New Room Reservation Booked", category: "Reservations" },
@@ -252,7 +254,7 @@ export const fontThemes: Record<InstitutionType, InstitutionConfig> = {
     badgeText: "text-violet-700 dark:text-violet-300",
     primaryColor: "violet",
     
-    enabledModules: ["dashboard", "crm", "bookings", "workflows", "employees", "inventory", "accounting", "ai-reports", "shop", "audit", "billing"],
+    enabledModules: ["dashboard", "documents", "crm", "bookings", "workflows", "employees", "inventory", "accounting", "ai-reports", "shop", "audit", "billing"],
     
     workflowTriggers: [
       { value: "lead_created", label: "📊 New Sales Lead Captured", category: "CRM" },
@@ -308,7 +310,7 @@ export const fontThemes: Record<InstitutionType, InstitutionConfig> = {
     badgeText: "text-emerald-700 dark:text-emerald-300",
     primaryColor: "emerald",
     
-    enabledModules: ["dashboard", "shop", "inventory", "crm", "accounting", "ai-reports", "employees", "audit", "billing"],
+    enabledModules: ["dashboard", "documents", "shop", "inventory", "crm", "accounting", "ai-reports", "employees", "audit", "billing"],
     
     workflowTriggers: [
       { value: "order_placed", label: "🛒 New Order Placed (Customer Checkout)", category: "Orders" },

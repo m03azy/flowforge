@@ -183,10 +183,23 @@ def upgrade_subscription_plan(
     
     # Update all users in organisation to the new plan
     org_users = db.query(User).filter(User.organisation_name == org).all()
+    old_plan = current_user.subscription_plan or "starter"
     for u in org_users:
         u.subscription_plan = payload.plan
 
     db.commit()
+
+    from app.services.audit_service import write_log
+    write_log(
+        db,
+        action="tenant_plan_changed",
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_role=current_user.role,
+        organisation_name=org,
+        resource_type="tenant_package",
+        description=f"Tenant '{org}' changed subscription plan from '{old_plan}' to '{payload.plan}'",
+    )
 
     return {
         "message": f"Successfully updated subscription plan for {org} to {PLANS_CATALOG[payload.plan]['name']}",
@@ -198,16 +211,31 @@ def upgrade_subscription_plan(
 def request_addon_service(
     payload: AddOnServiceRequest,
     current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     """Submit a request for professional services or add-on modules."""
     service = next((s for s in ADDON_SERVICES_CATALOG if s["id"] == payload.service_id), None)
     if not service:
         raise HTTPException(status_code=400, detail="Add-on service not found")
 
+    org = current_user.organisation_name or "default"
+
+    from app.services.audit_service import write_log
+    write_log(
+        db,
+        action="tenant_addon_purchased",
+        actor_id=current_user.id,
+        actor_email=current_user.email,
+        actor_role=current_user.role,
+        organisation_name=org,
+        resource_type="addon_service",
+        description=f"Tenant '{org}' requested/purchased add-on service '{service['name']}' (${service['price']})",
+    )
+
     return {
         "status": "success",
         "message": f"Your request for '{service['name']}' has been submitted. Our solutions engineer will contact {current_user.email} shortly.",
         "service": service,
         "requested_by": current_user.email,
-        "organisation": current_user.organisation_name or "default"
+        "organisation": org
     }
